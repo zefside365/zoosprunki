@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoo Sprunki: Mix 13 Animals!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #e8f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+
+        #zooCanvas {
+            border: 3px solid #2c3e50;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #218838;
+            transform: scale(1.05);
+        }
+
+        #savedMixes {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            text-align: left;
+        }
+
+        #savedMixes h2 {
+            color: #2c3e50;
+            font-size: 1.5em;
+        }
+
+        #savedMixes div {
+            background-color: #fff;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (max-width: 900px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            #zooCanvas {
+                width: 90%;
+                height: auto;
+            }
+
+            button {
+                padding: 10px 18px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Zoo Sprunki: Create Your Animal Mix!</h1>
+    <canvas id="zooCanvas" width="800" height="600"></canvas>
+    <div id="controls">
+        <div class="button-group">
+            <button onclick="playMix()">Play Mix</button>
+            <button onclick="stopMix()">Stop Mix</button>
+            <button onclick="toggleEffect('pitch')">Toggle Pitch Shift</button>
+            <button onclick="saveMix()">Save Mix</button>
+        </div>
+    </div>
+    <div id="savedMixes"></div>
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('zooCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Audio context
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Resume AudioContext on user interaction
+        document.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    console.log('AudioContext resumed');
+                }).catch(err => console.error('Error resuming AudioContext:', err));
+            }
+        }, { once: true });
+
+        // Animal data
+        const animals = {
+            bear: { sound: null, image: new Image(), active: false, source: null },
+            lion: { sound: null, image: new Image(), active: false, source: null },
+            sparrow: { sound: null, image: new Image(), active: false, source: null },
+            meadowlark: { sound: null, image: new Image(), active: false, source: null },
+            cow: { sound: null, image: new Image(), active: false, source: null },
+            monkey: { sound: null, image: new Image(), active: false, source: null },
+            dog: { sound: null, image: new Image(), active: false, source: null },
+            owl: { sound: null, image: new Image(), active: false, source: null },
+            donkey: { sound: null, image: new Image(), active: false, source: null },
+            goose: { sound: null, image: new Image(), active: false, source: null },
+            horse: { sound: null, image: new Image(), active: false, source: null },
+            wolf: { sound: null, image: new Image(), active: false, source: null },
+            cat: { sound: null, image: new Image(), active: false, source: null }
+        };
+
+        // Effects
+        let pitchShift = false;
+
+        // Saved mixes
+        let savedMixes = [];
+
+        // Load assets
+        function loadAssets() {
+            const assetPromises = [
+                // Audio
+                loadAudio('bear', 'assets/audio/beast-roar.wav'),
+                loadAudio('lion', 'assets/audio/lion-roar.wav'),
+                loadAudio('sparrow', 'assets/audio/birds-singing.wav'),
+                loadAudio('meadowlark', 'assets/audio/meadowlark-bird-song.mp3'),
+                loadAudio('cow', 'assets/audio/cow-moo.wav'),
+                loadAudio('monkey', 'assets/audio/monkey-giggling.wav'),
+                loadAudio('dog', 'assets/audio/dog-barking-twice.wav'),
+                loadAudio('owl', 'assets/audio/owl-hooting.mp3'),
+                loadAudio('donkey', 'assets/audio/donkey-scream.wav'),
+                loadAudio('goose', 'assets/audio/wild-geese.wav'),
+                loadAudio('horse', 'assets/audio/horse-neighing.wav'),
+                loadAudio('wolf', 'assets/audio/wolves-howling.wav'),
+                loadAudio('cat', 'assets/audio/kitty-meow.wav'),
+                // Images
+                loadImage('bear', 'assets/images/bear.jpg'),
+                loadImage('lion', 'assets/images/lion.jpg'),
+                loadImage('sparrow', 'assets/images/sparrow.jpg'),
+                loadImage('meadowlark', 'assets/images/meadowlark.jpg'),
+                loadImage('cow', 'assets/images/cow.jpg'),
+                loadImage('monkey', 'assets/images/monkey.jpg'),
+                loadImage('dog', 'assets/images/dog.jpg'),
+                loadImage('owl', 'assets/images/owl.jpg'),
+                loadImage('donkey', 'assets/images/donkey.jpg'),
+                loadImage('goose', 'assets/images/goose.jpg'),
+                loadImage('horse', 'assets/images/horse.jpg'),
+                loadImage('wolf', 'assets/images/wolf.jpg'),
+                loadImage('cat', 'assets/images/cat.jpg')
+            ];
+            return Promise.all(assetPromises);
+        }
+
+        function loadAudio(key, url) {
+            return fetch(url, { method: 'GET', cache: 'no-cache' })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+                        throw new Error(`HTTP error: ${response.status}`);
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(data => audioCtx.decodeAudioData(data))
+                .then(buffer => {
+                    animals[key].sound = buffer;
+                    console.log(`Successfully loaded audio for ${key}: ${url}`);
+                })
+                .catch(err => {
+                    console.error(`Error loading ${key} audio (${url}):`, err);
+                    throw err;
+                });
+        }
+
+        function loadImage(key, url) {
+            return new Promise((resolve, reject) => {
+                animals[key].image.src = url;
+                animals[key].image.onload = () => {
+                    console.log(`Successfully loaded image for ${key}: ${url}`);
+                    resolve();
+                };
+                animals[key].image.onerror = () => {
+                    console.error(`Error loading ${key} image: ${url}`);
+                    reject(new Error(`Failed to load image: ${url}`));
+                };
+            });
+        }
+
+        // Render canvas
+        function renderCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = pitchShift ? '#ffcccc' : '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw active animals (top section)
+            const activeAnimals = Object.keys(animals).filter(a => animals[a].active).slice(0, 4);
+            let x = 100;
+            ctx.font = '18px Arial';
+            ctx.fillStyle = '#2c3e50';
+            ctx.textAlign = 'center';
+            activeAnimals.forEach(animal => {
+                ctx.drawImage(animals[animal].image, x, 50, 120, 120);
+                ctx.fillText(animal.charAt(0).toUpperCase() + animal.slice(1), x + 60, 190);
+                x += 150;
+            });
+
+            // Draw selection grid (bottom section, y=250 to 600)
+            const animalKeys = Object.keys(animals);
+            const gridCols = 5;
+            const gridRows = 3;
+            const imgSize = 120;
+            const padding = 15;
+            const gridStartX = 50;
+            const gridStartY = 250;
+
+            // Draw grid background
+            ctx.fillStyle = '#f9f9f9';
+            ctx.fillRect(0, gridStartY - 20, canvas.width, canvas.height - gridStartY + 20);
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, gridStartY - 20, canvas.width, canvas.height - gridStartY + 20);
+
+            // Draw grid title
+            ctx.font = '20px Arial';
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText('Select Animals', canvas.width / 2, gridStartY - 30);
+
+            for (let i = 0; i < animalKeys.length; i++) {
+                const animal = animalKeys[i];
+                const row = Math.floor(i / gridCols);
+                const col = i % gridCols;
+                const x = gridStartX + col * (imgSize + padding);
+                const y = gridStartY + row * (imgSize + padding);
+
+                // Draw image
+                ctx.drawImage(animals[animal].image, x, y, imgSize, imgSize);
+
+                // Highlight active animal
+                if (animals[animal].active) {
+                    ctx.strokeStyle = '#ff9800';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(x - 2, y - 2, imgSize + 4, imgSize + 4);
+                    ctx.fillStyle = 'rgba(255, 152, 0, 0.2)';
+                    ctx.fillRect(x, y, imgSize, imgSize);
+                }
+
+                // Draw animal name
+                ctx.font = '14px Arial';
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillText(animal.charAt(0).toUpperCase() + animal.slice(1), x + imgSize / 2, y + imgSize + 20);
+            }
+        }
+
+        // Handle canvas clicks
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const imgSize = 120;
+            const padding = 15;
+            const gridCols = 5;
+            const gridStartX = 50;
+            const gridStartY = 250;
+
+            // Check if click is in grid area (y >= 250)
+            if (y >= gridStartY) {
+                const col = Math.floor((x - gridStartX) / (imgSize + padding));
+                const row = Math.floor((y - gridStartY) / (imgSize + padding));
+                const index = row * gridCols + col;
+
+                const animalKeys = Object.keys(animals);
+                if (index >= 0 && index < animalKeys.length) {
+                    const animal = animalKeys[index];
+                    toggleAnimal(animal);
+                }
+            }
+        });
+
+        // Toggle animal
+        function toggleAnimal(animal) {
+            animals[animal].active = !animals[animal].active;
+            renderCanvas();
+        }
+
+        // Toggle effect
+        function toggleEffect(effect) {
+            if (effect === 'pitch') pitchShift = !pitchShift;
+            renderCanvas();
+        }
+
+        // Play mix
+        function playMix() {
+            stopMix();
+            let soundPlayed = false;
+            for (const animal in animals) {
+                if (animals[animal].active && animals[animal].sound) {
+                    const source = audioCtx.createBufferSource();
+                    source.buffer = animals[animal].sound;
+                    source.loop = true;
+                    if (pitchShift) source.playbackRate.value = 1.2;
+                    const gainNode = audioCtx.createGain();
+                    gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime);
+                    source.connect(gainNode).connect(audioCtx.destination);
+                    source.start();
+                    animals[animal].source = source;
+                    soundPlayed = true;
+                    console.log(`Playing sound for ${animal}`);
+                }
+            }
+            if (!soundPlayed) {
+                console.warn('No active animals with loaded sounds to play');
+            }
+        }
+
+        // Stop mix
+        function stopMix() {
+            for (const animal in animals) {
+                if (animals[animal].source) {
+                    animals[animal].source.stop();
+                    animals[animal].source = null;
+                }
+            }
+        }
+
+        // Save mix
+        function saveMix() {
+            const mix = {
+                animals: Object.keys(animals).filter(a => animals[a].active),
+                pitchShift: pitchShift,
+                id: Date.now()
+            };
+            savedMixes.push(mix);
+            updateSavedMixes();
+        }
+
+        // Update saved mixes
+        function updateSavedMixes() {
+            const savedMixesDiv = document.getElementById('savedMixes');
+            savedMixesDiv.innerHTML = '<h2>Saved Mixes</h2>';
+            savedMixes.forEach(mix => {
+                const mixDiv = document.createElement('div');
+                mixDiv.textContent = `Mix ${mix.id}: Animals: ${mix.animals.join(', ')} ${mix.pitchShift ? '(Pitch Shift)' : ''}`;
+                savedMixesDiv.appendChild(mixDiv);
+            });
+        }
+
+        // Initialize
+        loadAssets().then(() => {
+            console.log('All assets loaded successfully');
+            renderCanvas();
+        }).catch(err => console.error('Error loading assets:', err));
+    </script>
+</body>
+</html>
