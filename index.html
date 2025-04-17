@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zoo Sprunki: Mix 13 Animals!</title>
+    <title>Zoo Sprunki: Mix 15 Animals!</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -151,7 +151,7 @@
     </style>
 </head>
 <body>
-    <h1>Zoo Sprunki: Mix 13 Animals!</h1>
+    <h1>Zoo Sprunki: Mix 15 Animals!</h1>
     <canvas id="zooCanvas" width="900" height="700"></canvas>
     <div id="controls">
         <div class="button-group">
@@ -194,7 +194,9 @@
             goose: { sound: null, image: new Image(), active: false, source: null },
             horse: { sound: null, image: new Image(), active: false, source: null },
             wolf: { sound: null, image: new Image(), active: false, source: null },
-            cat: { sound: null, image: new Image(), active: false, source: null }
+            cat: { sound: null, image: new Image(), active: false, source: null },
+            hawk: { sound: null, image: new Image(), active: false, source: null },
+            eagle: { sound: null, image: new Image(), active: false, source: null }
         };
 
         // Effects
@@ -206,6 +208,7 @@
         // Load assets
         function loadAssets() {
             const assetPromises = [
+                // Audio
                 loadAudio('bear', 'assets/audio/beast-roar.wav'),
                 loadAudio('lion', 'assets/audio/lion-roar.wav'),
                 loadAudio('sparrow', 'assets/audio/birds-singing.wav'),
@@ -219,6 +222,9 @@
                 loadAudio('horse', 'assets/audio/horse-neighing.wav'),
                 loadAudio('wolf', 'assets/audio/wolves-howling.wav'),
                 loadAudio('cat', 'assets/audio/kitty-meow.wav'),
+                loadAudio('hawk', 'assets/audio/hawk-screech.mp3'),
+                loadAudio('eagle', 'assets/audio/eagle-call.mp3'),
+                // Images
                 loadImage('bear', 'assets/images/bear.jpg'),
                 loadImage('lion', 'assets/images/lion.jpg'),
                 loadImage('sparrow', 'assets/images/sparrow.jpg'),
@@ -231,7 +237,384 @@
                 loadImage('goose', 'assets/images/goose.jpg'),
                 loadImage('horse', 'assets/images/horse.jpg'),
                 loadImage('wolf', 'assets/images/wolf.jpg'),
-                loadImage('cat', 'assets/images/cat.jpg')
+                loadImage('cat', 'assets/images/cat.jpg'),
+                loadImage('hawk', 'assets/images/hawk.jpg'),
+                loadImage('eagle', 'assets/images/eagle.jpg')
+            ];
+            return Promise.all(assetPromises);
+        }
+
+        function loadAudio(key, url) {
+            return fetch(url, { method: 'GET', cache: 'no-cache' })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+                        throw new Error(`HTTP error: ${response.status}`);
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(data => audioCtx.decodeAudioData(data))
+                .then(buffer => {
+                    animals[key].sound = buffer;
+                    console.log(`Successfully loaded audio for ${key}: ${url}`);
+                })
+                .catch(err => {
+                    console.error(`Error loading ${key} audio (${url}):`, err);
+                    throw err;
+                });
+        }
+
+        function loadImage(key, url) {
+            return new Promise((resolve, reject) => {
+                animals[key].image.src = url;
+                animals[key].image.onload = () => {
+                    console.log(`Successfully loaded image for ${key}: ${url}`);
+                    resolve();
+                };
+                animals[key].image.onerror = () => {
+                    console.error(`Error loading ${key} image: ${url}`);
+                    reject(new Error(`Failed to load image: ${url}`));
+                };
+            });
+        }
+
+        // Render canvas
+        function renderCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = pitchShift ? 'rgba(255, 200, 200, 0.8)' : '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw active animals (top section, y=50 to 250)
+            const activeAnimals = Object.keys(animals).filter(a => animals[a].active).slice(0, 4);
+            let x = 150;
+            ctx.font = '18px Poppins';
+            ctx.fillStyle = '#1a3c5e';
+            ctx.textAlign = 'center';
+            activeAnimals.forEach(animal => {
+                ctx.save();
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = 8;
+                ctx.drawImage(animals[animal].image, x, 50, 130, 130);
+                ctx.restore();
+                ctx.fillText(animal.charAt(0).toUpperCase() + animal.slice(1), x + 65, 200);
+                ctx.strokeStyle = '#ff6f61';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x - 5, 45, 140, 140);
+                x += 180;
+            });
+
+            // Draw selection grid (bottom section, y=300 to 700)
+            const animalKeys = Object.keys(animals);
+            const gridCols = 5;
+            const gridRows = 3;
+            const imgSize = 130;
+            const padding = 15;
+            const gridStartX = 50;
+            const gridStartY = 300;
+
+            // Grid background
+            ctx.fillStyle = 'rgba(245, 245, 245, 0.9)';
+            ctx.fillRect(0, gridStartY - 30, canvas.width, canvas.height - gridStartY + 30);
+            ctx.strokeStyle = '#1a3c5e';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, gridStartY - 30, canvas.width, canvas.height - gridStartY + 30);
+
+            // Grid title
+            ctx.font = '22px Poppins';
+            ctx.fillStyle = '#1a3c5e';
+            ctx.fillText('Select Animals', canvas.width / 2, gridStartY - 40);
+
+            for (let i = 0; i < animalKeys.length; i++) {
+                const animal = animalKeys[i];
+                const row = Math.floor(i / gridCols);
+                const col = i % gridCols;
+                const x = gridStartX + col * (imgSize + padding);
+                const y = gridStartY + row * (imgSize + padding);
+
+                // Draw image with shadow
+                ctx.save();
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+                ctx.shadowBlur = 6;
+                ctx.drawImage(animals[animal].image, x, y, imgSize, imgSize);
+                ctx.restore();
+
+                // Highlight active or hovered animal
+                if (animals[animal].active) {
+                    ctx.strokeStyle = '#ff6f61';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(x - 3, y - 3, imgSize + 6, imgSize + 6);
+                    ctx.fillStyle = 'rgba(255, 111, 97, 0.2)';
+                    ctx.fillRect(x, y, imgSize, imgSize);
+                } else if (animal === hoveredAnimal) {
+                    ctx.strokeStyle = '#28a745';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x - 2, y - 2, imgSize + 4, imgSize + 4);
+                }
+
+                // Draw animal name
+                ctx.font = '14px Poppins';
+                ctx.fillStyle = '#1a3c5e';
+                ctx.fillText(animal.charAt(0).toUpperCase() + animal.slice(1), x + imgSize / 2, y + imgSize + 20);
+            }
+        }
+
+        // Handle canvas clicks
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const imgSize = 130;
+            const padding = 15;
+            const gridCols = 5 Nostalgia
+
+System: It looks like the `index.html` script was cut off in your message. I'll provide the complete, updated `index.html` for the Zoo Sprunki game, incorporating the addition of hawk and eagle to the existing 13 animals, resulting in a total of 15 animals (bear, lion, sparrow, meadowlark, cow, monkey, dog, owl, donkey, goose, horse, wolf, cat, hawk, eagle). The UI remains professional and polished, using a single 900x700 canvas with a 5x3 grid for selection, ensuring it doesn’t look unprofessional as per your feedback. I’ll also include the updated bash script to handle the new sound files (`hawk-screech.wav`, `eagle-call.wav`) and images, resized to 130x130 pixels, and the server script for CORS-free HTTP serving on your macOS system, addressing previous issues (Homebrew `TypeError`, Git errors, Python 2 `server.py` error).
+
+### Complete `index.html`
+This single file integrates HTML, CSS, and JavaScript, updated to include hawk and eagle, with a professional UI using Poppins font, teal/coral colors, gradients, shadows, hover effects, and tooltips.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoo Sprunki: Mix 15 Animals!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #d4e4f7 0%, #f0e6e8 100%);
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #1a3c5e;
+            font-size: 2.8em;
+            margin-bottom: 25px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        h1::after {
+            content: '';
+            width: 100px;
+            height: 4px;
+            background: #ff6f61;
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+        }
+
+        #zooCanvas {
+            border: 4px solid #1a3c5e;
+            border-radius: 15px;
+            background: #ffffff;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            margin-bottom: 25px;
+            cursor: pointer;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            max-width: 900px;
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #28a745, #1e7e34);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        button::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a3c5e;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        button:hover::after {
+            opacity: 1;
+        }
+
+        #savedMixes {
+            width: 100%;
+            max-width: 900px;
+            text-align: left;
+        }
+
+        #savedMixes h2 {
+            color: #1a3c5e;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+        }
+
+        #savedMixes div {
+            background: #fff;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            color: #333;
+        }
+
+        @media (max-width: 1000px) {
+            h1 {
+                font-size: 2.2em;
+            }
+
+            #zooCanvas {
+                width: 90%;
+                height: auto;
+            }
+
+            #controls {
+                padding: 10px;
+            }
+
+            button {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Zoo Sprunki: Mix 15 Animals!</h1>
+    <canvas id="zooCanvas" width="900" height="700"></canvas>
+    <div id="controls">
+        <div class="button-group">
+            <button onclick="playMix()" data-tooltip="Play selected animal sounds"><i class="fas fa-play"></i> Play Mix</button>
+            <button onclick="stopMix()" data-tooltip="Stop all sounds"><i class="fas fa-stop"></i> Stop Mix</button>
+            <button onclick="toggleEffect('pitch')" data-tooltip="Toggle pitch effect"><i class="fas fa-sliders-h"></i> Pitch Shift</button>
+            <button onclick="saveMix()" data-tooltip="Save current mix"><i class="fas fa-save"></i> Save Mix</button>
+        </div>
+    </div>
+    <div id="savedMixes"></div>
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('zooCanvas');
+        const ctx = canvas.getContext('2d');
+        let hoveredAnimal = null;
+
+        // Audio context
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Resume AudioContext on user interaction
+        document.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    console.log('AudioContext resumed');
+                }).catch(err => console.error('Error resuming AudioContext:', err));
+            }
+        }, { once: true });
+
+        // Animal data
+        const animals = {
+            bear: { sound: null, image: new Image(), active: false, source: null },
+            lion: { sound: null, image: new Image(), active: false, source: null },
+            sparrow: { sound: null, image: new Image(), active: false, source: null },
+            meadowlark: { sound: null, image: new Image(), active: false, source: null },
+            cow: { sound: null, image: new Image(), active: false, source: null },
+            monkey: { sound: null, image: new Image(), active: false, source: null },
+            dog: { sound: null, image: new Image(), active: false, source: null },
+            owl: { sound: null, image: new Image(), active: false, source: null },
+            donkey: { sound: null, image: new Image(), active: false, source: null },
+            goose: { sound: null, image: new Image(), active: false, source: null },
+            horse: { sound: null, image: new Image(), active: false, source: null },
+            wolf: { sound: null, image: new Image(), active: false, source: null },
+            cat: { sound: null, image: new Image(), active: false, source: null },
+            hawk: { sound: null, image: new Image(), active: false, source: null },
+            eagle: { sound: null, image: new Image(), active: false, source: null }
+        };
+
+        // Effects
+        let pitchShift = false;
+
+        // Saved mixes
+        let savedMixes = [];
+
+        // Load assets
+        function loadAssets() {
+            const assetPromises = [
+                // Audio
+                loadAudio('bear', 'assets/audio/beast-roar.wav'),
+                loadAudio('lion', 'assets/audio/lion-roar.wav'),
+                loadAudio('sparrow', 'assets/audio/birds-singing.wav'),
+                loadAudio('meadowlark', 'assets/audio/meadowlark-bird-song.mp3'),
+                loadAudio('cow', 'assets/audio/cow-moo.wav'),
+                loadAudio('monkey', 'assets/audio/monkey-giggling.wav'),
+                loadAudio('dog', 'assets/audio/dog-barking-twice.wav'),
+                loadAudio('owl', 'assets/audio/owl-hooting.mp3'),
+                loadAudio('donkey', 'assets/audio/donkey-scream.wav'),
+                loadAudio('goose', 'assets/audio/wild-geese.wav'),
+                loadAudio('horse', 'assets/audio/horse-neighing.wav'),
+                loadAudio('wolf', 'assets/audio/wolves-howling.wav'),
+                loadAudio('cat', 'assets/audio/kitty-meow.wav'),
+                loadAudio('hawk', 'assets/audio/hawk-screech.mp3'),
+                loadAudio('eagle', 'assets/audio/eagle-call.mp3'),
+                // Images
+                loadImage('bear', 'assets/images/bear.jpg'),
+                loadImage('lion', 'assets/images/lion.jpg'),
+                loadImage('sparrow', 'assets/images/sparrow.jpg'),
+                loadImage('meadowlark', 'assets/images/meadowlark.jpg'),
+                loadImage('cow', 'assets/images/cow.jpg'),
+                loadImage('monkey', 'assets/images/monkey.jpg'),
+                loadImage('dog', 'assets/images/dog.jpg'),
+                loadImage('owl', 'assets/images/owl.jpg'),
+                loadImage('donkey', 'assets/images/donkey.jpg'),
+                loadImage('goose', 'assets/images/goose.jpg'),
+                loadImage('horse', 'assets/images/horse.jpg'),
+                loadImage('wolf', 'assets/images/wolf.jpg'),
+                loadImage('cat', 'assets/images/cat.jpg'),
+                loadImage('hawk', 'assets/images/hawk.jpg'),
+                loadImage('eagle', 'assets/images/eagle.jpg')
             ];
             return Promise.all(assetPromises);
         }
